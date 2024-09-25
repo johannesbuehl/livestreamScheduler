@@ -1,0 +1,8 @@
+LogLevel: DEBUG
+CreationDistance: 24h
+RegionCode: DE
+Template:
+  Title: "Gottesdienst der Evangelischen Kirche Bühl | TITLE_DATE | #ekibageistlich"
+  Category: People & Blogs
+  PlaylistIDs:
+    - PLGdIyIZ8SJQq88MQl3gC0Afp2yFcfcpeQ"
