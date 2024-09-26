@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  run-binary:
+  build:
     runs-on: ubuntu-latest
 
     steps:
