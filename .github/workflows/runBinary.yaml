@@ -1,0 +1,21 @@
+name: Run livestreamScheduler-binary
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+
+jobs:
+  run-binary:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Download binary artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: livestreamScheduler-binary
+
+      - name: Execute binary
+        run: |
+          chmod +x ./livestreamScheduler
+          ./livestreamScheduler
