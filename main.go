@@ -28,7 +28,7 @@ func (c *livestreamTemplate) createBroadcast() error {
 			ScheduledStartTime: c.Date,
 		},
 		Status: &youtube.LiveBroadcastStatus{
-			PrivacyStatus: "private",
+			PrivacyStatus: "public",
 		},
 		ContentDetails: &youtube.LiveBroadcastContentDetails{
 			EnableAutoStart: true,
