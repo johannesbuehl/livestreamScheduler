@@ -12,7 +12,10 @@ jobs:
     steps:
 
       - name: create config.yaml
-        run: echo "${{ vars.CONFIGYAML }}"" > config.yaml
+        uses: "finnp/create-file-action@master"
+        env:
+          FILE_NAME: "config.yaml"
+          FILE_DATA: ${{ vars.CONFIGYAML }}
 
       - name: create credentials.json
         id: create-json-credentials
