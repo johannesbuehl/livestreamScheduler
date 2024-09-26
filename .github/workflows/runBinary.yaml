@@ -11,12 +11,15 @@ jobs:
 
     steps:
 
-      - name: Download binary artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: livestreamScheduler-binary
+      - name: Download binary from GitHub Release
+        run: |
+          SSET_ID=$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -s https://api.github.com/repos/evbuehl/livestreamScheduler/releases/latest | \
+          jq -r '.assets[] | select(.name == "livestreamScheduler") | .id')
+          curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -L -o livestreamScheduler \
+          https://api.github.com/repos/evbuehl/livestreamScheduler/releases/latest/assets/livestreamScheduler
+          chmod +x ./livestreamScheduler
 
       - name: Execute binary
-        run: |
-          chmod +x ./livestreamScheduler
-          ./livestreamScheduler
+        run: ./livestreamScheduler

@@ -2,8 +2,8 @@ name: Build and store binary
 
 on:
   push:
-    branches:
-      - master
+    tags:
+      - '*'
   workflow_dispatch:
 
 jobs:
@@ -24,8 +24,9 @@ jobs:
           go mod tidy
           go build -ldflags "-s -w" -o ./livestreamScheduler
 
-      - name: Upload binary as artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload binary to GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: livestreamScheduler-binary
-          path: ./livestreamScheduler
+          files: ./livestreamScheduler
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
