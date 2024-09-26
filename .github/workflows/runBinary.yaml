@@ -11,14 +11,15 @@ jobs:
 
     steps:
 
+      - name: create credentials.json
+        run: echo ${{ secrets.CREDENTIALSJSON }} > credentials.json
+
+      - name: create token.json
+        run: echo ${{ secrets.TOKENJSON }} > token.json
+
       - name: Download binary from GitHub Release
         run: |
-          SSET_ID=$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-          -s https://api.github.com/repos/evbuehl/livestreamScheduler/releases/latest | \
-          jq -r '.assets[] | select(.name == "livestreamScheduler") | .id')
-          curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-          -L -o livestreamScheduler \
-          https://api.github.com/repos/evbuehl/livestreamScheduler/releases/latest/assets/livestreamScheduler
+          curl -L -o livestreamScheduler https://github.com/evbuehl/livestreamScheduler/releases/latest/download/livestreamScheduler
           chmod +x ./livestreamScheduler
 
       - name: Execute binary
