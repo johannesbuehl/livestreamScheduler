@@ -25,12 +25,6 @@ jobs:
         name: "token.json"
         json: ${{ secrets.TOKENJSON }}
 
-      - name: create credentials.json
-        run: echo ${{ secrets.CREDENTIALSJSON }} > credentials.json
-
-      - name: create token.json
-        run: echo ${{ secrets.TOKENJSON }} > token.json
-
       - name: Download binary from GitHub Release
         run: |
           curl -L -o livestreamScheduler https://github.com/evbuehl/livestreamScheduler/releases/latest/download/livestreamScheduler
