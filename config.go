@@ -6,9 +6,8 @@ import (
 	"time"
 
 	"github.com/evbuehl/livestreamScheduler/lib/googleApi"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"gopkg.in/natefinch/lumberjack.v2"
+	"github.com/xtfly/log4g"
+	"github.com/xtfly/log4g/api"
 	"gopkg.in/yaml.v3"
 )
 
@@ -27,10 +26,18 @@ type livestreamConfig struct {
 	Thumbnail   string
 }
 
+type thumbnails struct {
+	Queue string `yaml:"Queue"`
+	Done  string `yaml:"Done"`
+}
+
 type configYaml struct {
 	LogLevel         string               `yaml:"LogLevel"`
+	MailLevel        string               `yaml:"MailLevel"`
+	MailAddress      string               `yaml:"MailAddress"`
 	CreationDistance string               `yaml:"CreationDistance"`
 	RegionCode       string               `yaml:"RegionCode"`
+	Thumbnails       thumbnails           `yaml:"Thumbnails"`
 	Template         livestreamConfigYaml `yaml:"Template"`
 }
 
@@ -61,7 +68,8 @@ func loadYaml() configYaml {
 
 	yamlFile, err := os.ReadFile("config.yaml")
 	if err != nil {
-		logger.Sugar().Errorf("Error opening config-file: %q", err)
+		logger.Critical("Error opening config-file: %q", err)
+		panic(err)
 	}
 
 	reader := bytes.NewReader(yamlFile)
@@ -70,8 +78,8 @@ func loadYaml() configYaml {
 	dec.KnownFields(true)
 	err = dec.Decode(&config)
 	if err != nil {
-		logger.Sugar().Errorf("Error parsing config-file: %v", err)
-		os.Exit(1)
+		logger.Critical("Error parsing config-file: %v", err)
+		panic(err)
 	}
 
 	return config
@@ -81,8 +89,9 @@ func loadConfig(config configYaml) configStruct {
 	duration, err := time.ParseDuration(config.CreationDistance)
 
 	if err != nil {
-		logger.Sugar().Errorf("can't parse CreationDistance %v", err)
-		os.Exit(1)
+		logger.Critical("can't parse CreationDistance %v", err)
+
+		panic(err)
 	}
 
 	return configStruct{
@@ -97,41 +106,31 @@ func loadConfig(config configYaml) configStruct {
 
 var config configStruct
 
+var logger api.Logger
+
 func init() {
 	configYaml := loadYaml()
 
 	// initialize the logger
-	stdout := zapcore.AddSync(os.Stdout)
-
-	file := zapcore.AddSync(&lumberjack.Logger{
-		Filename: "logs/server.log",
-		MaxSize:  10,
-	})
-
-	level, err := zapcore.ParseLevel(configYaml.LogLevel)
-
-	if err != nil {
-		level = zapcore.InfoLevel
+	cfg := &api.Config{
+		Loggers: []api.CfgLogger{
+			{Name: "root", Level: configYaml.LogLevel, OutputNames: []string{"console", "log", "mail"}},
+		},
+		Formats: []api.CfgFormat{
+			{"type": "text", "name": "std", "layout": "[%{time}] [%{level}] >> %{msg}\n"},
+		},
+		Outputs: []api.CfgOutput{
+			{"type": "console", "name": "console", "format": "std"},
+			{"type": "time_rolling_file", "name": "log", "file": "logs/livestreamScheduler.log", "pattern": "2006-01-02", "backups": "7", "format": "std"},
+			{"type": "size_rolling_file", "name": "mail", "file": "mail.log", "format": "std", "threshold": configYaml.MailLevel},
+		},
 	}
 
-	productionConfig := zap.NewProductionEncoderConfig()
-	productionConfig.TimeKey = "timestamp"
-	productionConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	if err := log4g.GetManager().SetConfig(cfg); err != nil {
+		panic(err)
+	}
 
-	developmentConfig := zap.NewDevelopmentEncoderConfig()
-	developmentConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-
-	consoleEncoder := zapcore.NewConsoleEncoder(developmentConfig)
-	fileEncoder := zapcore.NewJSONEncoder(productionConfig)
-
-	core := zapcore.NewTee(
-		zapcore.NewCore(consoleEncoder, stdout, level),
-		zapcore.NewCore(fileEncoder, file, level),
-	)
-
-	zap.ReplaceGlobals(zap.Must(zap.NewProduction()))
-
-	logger = *zap.New(core, zap.AddCaller())
+	logger = log4g.GetLogger("default")
 
 	// get the youtube category map
 	getCategoryMap()

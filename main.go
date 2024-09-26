@@ -1,8 +1,13 @@
 package main
 
 import (
+	"encoding/base64"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -10,14 +15,13 @@ import (
 	"time"
 
 	"github.com/evbuehl/livestreamScheduler/lib/googleApi"
-	"go.uber.org/zap"
+	"github.com/jrivets/log4g"
 	"google.golang.org/api/drive/v2"
+	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/youtube/v3"
 )
 
-var logger zap.Logger
-
-func (c *livestreamConfig) createBroadcast() {
+func (c *livestreamConfig) createBroadcast() error {
 	broadcast := youtube.LiveBroadcast{
 		Snippet: &youtube.LiveBroadcastSnippet{
 			Title:              "Livestream in construction",
@@ -35,13 +39,15 @@ func (c *livestreamConfig) createBroadcast() {
 	call := googleApi.YoutubeService.LiveBroadcasts.Insert([]string{"snippet", "status", "contentDetails"}, &broadcast)
 
 	if response, err := call.Do(); err != nil {
-		logger.Fatal(fmt.Sprintf("Error creating broadcast: %v", err))
+		return err
 	} else {
 		c.BroadcastID = response.Id
+
+		return nil
 	}
 }
 
-func (c livestreamConfig) addPlaylist() {
+func (c livestreamConfig) addPlaylist() error {
 	for _, playlistID := range c.PlaylistIDs {
 		playlistItem := &youtube.PlaylistItem{
 			Snippet: &youtube.PlaylistItemSnippet{
@@ -56,12 +62,14 @@ func (c livestreamConfig) addPlaylist() {
 		call := googleApi.YoutubeService.PlaylistItems.Insert([]string{"snippet"}, playlistItem)
 
 		if _, err := call.Do(); err != nil {
-			logger.Error(fmt.Sprintf("error adding playlist %q: %v", playlistID, err))
+			return err
 		}
 	}
+
+	return nil
 }
 
-func (c livestreamConfig) addCategory() {
+func (c livestreamConfig) setCategoryPrivacy() error {
 	video := &youtube.Video{
 		Id: c.BroadcastID,
 		Snippet: &youtube.VideoSnippet{
@@ -76,8 +84,10 @@ func (c livestreamConfig) addCategory() {
 	call := googleApi.YoutubeService.Videos.Update([]string{"id", "snippet", "status"}, video)
 
 	if _, err := call.Do(); err != nil {
-		logger.Error(fmt.Sprintf("error setting category and privacy-status: %v", err))
+		return err
 	}
+
+	return nil
 }
 
 func dlThumbnail(id string) (*http.Response, error) {
@@ -90,25 +100,37 @@ func dlThumbnail(id string) (*http.Response, error) {
 	}
 }
 
-func (c livestreamConfig) setThumbnail() {
+func (c livestreamConfig) setThumbnail() error {
 	if thumbnail, err := dlThumbnail(c.Thumbnail); err != nil {
-		logger.Error(fmt.Sprintf("can't download thumbnail %v", err))
+		return fmt.Errorf("can't download thumbnail %v", err)
 	} else {
 		call := googleApi.YoutubeService.Thumbnails.Set(c.BroadcastID).Media(thumbnail.Body)
 
-		if response, err := call.Do(); err != nil {
-			logger.Error(fmt.Sprintf("can't set thumbnail: %v", err))
-		} else {
-			logger.Debug(response.EventId)
+		if _, err := call.Do(); err != nil {
+			return fmt.Errorf("can't set thumbnail: %v", err)
 		}
+	}
+
+	return nil
+}
+
+func (c livestreamConfig) moveThumbnail() error {
+	parent := drive.ParentReference{
+		Id: config.Thumbnails.Done,
+	}
+
+	call := googleApi.DriveService.Parents.Insert(c.Thumbnail, &parent)
+
+	if _, err := call.Do(); err != nil {
+		return err
+	} else {
+		return nil
 	}
 }
 
 func getThumbnails() ([]*drive.File, error) {
-	// q: mimeType = 'application/vnd.google-apps.folder'
-
 	call := googleApi.DriveService.Files.List().
-		Q("'110N0zGP8Pqwlf_4zz_RdSr9J6JKgTpUM' in parents and (mimeType = 'image/jpeg' or mimeType = 'image/png')")
+		Q(fmt.Sprintf("%q in parents and (mimeType = 'image/jpeg' or mimeType = 'image/png')", config.Thumbnails.Queue))
 
 	if response, err := call.Do(); err != nil {
 		return nil, nil
@@ -165,24 +187,119 @@ func (c livestreamConfig) handleThumbnail(thumbnail *drive.File) {
 				c.Title = strings.ReplaceAll(c.Title, "TITLE_DATE", fmt.Sprintf("%02d. %s %d", livestreamDate.Day(), livestreamDate.Local().Month().String(), livestreamDate.Year()))
 			}
 
-			c.createBroadcast()
-			c.addCategory()
-			c.addPlaylist()
-			c.setThumbnail()
+			if err := c.createBroadcast(); err != nil {
+				logger.Critical("failed to create broadcast: %v", err)
+			} else {
+				if err := c.setCategoryPrivacy(); err != nil {
+					logger.Error("failed to set category and privacy: %v", err)
+				}
+
+				if err := c.addPlaylist(); err != nil {
+					logger.Error("failed to add broadcast to playlists: %v", err)
+				}
+
+				if err := c.setThumbnail(); err != nil {
+					logger.Error("failed to set thumbnail: %v", err)
+				}
+
+				if err := c.moveThumbnail(); err != nil {
+					logger.Critical(`failed to move thumbnail to "scheduled"-directory`)
+				}
+			}
 		}
 
 	} else {
-		logger.Info(fmt.Sprintf(`skipping thumbnail %q, filename doesn't match "YYYY-MM-DD.HH-MM-SS.(TITLE)?.(jpg|png)"`, thumbnail.Title))
+		logger.Debug(fmt.Sprintf(`skipping thumbnail %q, filename doesn't match "YYYY-MM-DD.HH-MM-SS.(TITLE)?.(jpg|png)"`, thumbnail.Title))
+	}
+}
+
+type mail struct {
+	From    string
+	Date    string
+	To      string
+	CC      string
+	BCC     string
+	Subject string
+	Body    string
+}
+
+func (m mail) bytes() []byte {
+	v := reflect.ValueOf(m)
+	t := reflect.TypeOf(m)
+
+	var result []string
+
+	for ii := 0; ii < v.NumField(); ii++ {
+		key := t.Field(ii).Name
+		val := v.Field(ii).Interface().(string)
+
+		// skip empty values and the body
+		if key != "Body" && val != "" {
+			result = append(result, fmt.Sprintf("%s: %s", key, val))
+		}
+	}
+
+	return []byte(strings.Join(result, "\r\n") + "\r\n\r\n" + m.Body)
+}
+
+func sendMail() error {
+	// if there is no mail-log, do nothing
+	if _, err := os.Stat("mail.log"); errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+
+	// open the mail-log
+	if f, err := os.Open("mail.log"); err != nil {
+		return err
+	} else {
+		defer f.Close()
+
+		if mailLog, err := io.ReadAll(f); err != nil {
+			return nil
+		} else {
+			message := mail{
+				From:    "Livestream Scheduler",
+				Date:    time.Now().Format(time.RFC1123Z),
+				To:      config.MailAddress,
+				Subject: "Summary of livestreamScheduler",
+				Body:    string(mailLog),
+			}
+
+			gmailMessage := gmail.Message{
+				Raw: base64.URLEncoding.EncodeToString(message.bytes()),
+			}
+
+			call := googleApi.GmailService.Users.Messages.Send("me", &gmailMessage)
+
+			if _, err := call.Do(); err != nil {
+				return err
+			} else {
+				return nil
+			}
+		}
 	}
 }
 
 var wg sync.WaitGroup
 
 func main() {
-	defer logger.Sync()
+	defer func() {
+		log4g.Shutdown()
+
+		if err := sendMail(); err != nil {
+			panic(err)
+		}
+
+		if r := recover(); r != nil {
+			logger.Critical(r)
+			panic(r)
+		}
+	}()
 
 	if thumbnails, err := getThumbnails(); err != nil {
-		logger.Fatal("can't get thumbnails")
+		logger.Critical("can't get thumbnails")
 	} else {
 		for _, thumbnail := range thumbnails {
 			wg.Add(1)
@@ -192,15 +309,4 @@ func main() {
 	}
 
 	wg.Wait()
-
-	// config := livestreamConfig{
-	// 	title:       "test-stream",
-	// 	date:        "2024-09-30T12:00:00Z",
-	// 	category:    "22",
-	// 	playlistIDs: []string{"PLGdIyIZ8SJQq88MQl3gC0Afp2yFcfcpeQ"},
-	// }
-
-	// config.createBroadcast()
-	// config.addCategory()
-	// config.addPlaylist()
 }

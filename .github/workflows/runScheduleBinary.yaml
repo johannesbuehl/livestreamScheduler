@@ -31,6 +31,11 @@ jobs:
           name: "token.json"
           json: ${{ secrets.TOKENJSON }}
 
+      - name: download logs from artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: logs
+
       - name: Download binary from GitHub Release
         run: |
           curl -L -o livestreamScheduler https://github.com/johannesbuehl/livestreamScheduler/releases/latest/download/livestreamScheduler
@@ -40,3 +45,9 @@ jobs:
         run: |
           cat ./config.yaml
           ./livestreamScheduler
+
+      - name: upload logs to artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs
+          path: ./logs
