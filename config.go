@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
+	"fmt"
 	"os"
 	"time"
 
@@ -11,14 +13,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type livestreamConfigYaml struct {
-	Title       string   `yaml:"Title"`
-	Category    string   `yaml:"Category"`
-	PlaylistIDs []string `yaml:"PlaylistIDs"`
+type livestreamTemplateJson struct {
+	Title       string   `yaml:"title"`
+	Description string   `yaml:"description"`
+	Category    string   `yaml:"category"`
+	PlaylistIDs []string `yaml:"playlist_ids"`
 }
 
-type livestreamConfig struct {
-	livestreamConfigYaml
+type livestreamTemplate struct {
+	livestreamTemplateJson
 	BroadcastID string
 	Date        string
 	Category    string
@@ -32,19 +35,18 @@ type thumbnails struct {
 }
 
 type configYaml struct {
-	LogLevel         string               `yaml:"LogLevel"`
-	MailLevel        string               `yaml:"MailLevel"`
-	MailAddress      string               `yaml:"MailAddress"`
-	CreationDistance string               `yaml:"CreationDistance"`
-	RegionCode       string               `yaml:"RegionCode"`
-	Thumbnails       thumbnails           `yaml:"Thumbnails"`
-	Template         livestreamConfigYaml `yaml:"Template"`
+	LogLevel         string     `yaml:"LogLevel"`
+	MailLevel        string     `yaml:"MailLevel"`
+	MailAddress      string     `yaml:"MailAddress"`
+	CreationDistance string     `yaml:"CreationDistance"`
+	RegionCode       string     `yaml:"RegionCode"`
+	Thumbnails       thumbnails `yaml:"Thumbnails"`
 }
 
 type configStruct struct {
 	configYaml
 	CreationDistance time.Duration
-	Template         livestreamConfig
+	Template         livestreamTemplate
 }
 
 var youtubeCategoryMap = map[string]string{}
@@ -68,7 +70,7 @@ func loadYaml() configYaml {
 
 	yamlFile, err := os.ReadFile("config.yaml")
 	if err != nil {
-		logger.Critical("Error opening config-file: %q", err)
+		logger.Critical(fmt.Sprintf("Error opening config-file: %q", err))
 		panic(err)
 	}
 
@@ -78,7 +80,7 @@ func loadYaml() configYaml {
 	dec.KnownFields(true)
 	err = dec.Decode(&config)
 	if err != nil {
-		logger.Critical("Error parsing config-file: %v", err)
+		logger.Critical(fmt.Sprintf("Error parsing config-file: %v", err))
 		panic(err)
 	}
 
@@ -89,19 +91,55 @@ func loadConfig(config configYaml) configStruct {
 	duration, err := time.ParseDuration(config.CreationDistance)
 
 	if err != nil {
-		logger.Critical("can't parse CreationDistance %v", err)
+		logger.Critical(fmt.Sprintf("can't parse CreationDistance %v", err))
 
 		panic(err)
 	}
 
-	return configStruct{
-		configYaml:       config,
-		CreationDistance: duration,
-		Template: livestreamConfig{
-			livestreamConfigYaml: config.Template,
-			Category:             youtubeCategoryMap[config.Template.Category],
-		},
+	if t, err := loadTemplate(); err != nil {
+		panic(err)
+	} else {
+		return configStruct{
+			configYaml:       config,
+			CreationDistance: duration,
+			Template:         t,
+		}
 	}
+
+}
+
+func loadTemplate() (livestreamTemplate, error) {
+	var template livestreamTemplate
+	templateJson := livestreamTemplateJson{}
+
+	call := googleApi.DriveService.Files.List().
+		Q("name = 'defaults.json'")
+		// Q(fmt.Sprintf("%q in parents and name = \"defaults.json\"", config.Thumbnails.Queue))
+
+	if response, err := call.Do(); err != nil {
+		return template, err
+	} else if len(response.Files) == 0 {
+		return template, fmt.Errorf(`can't find "defaults.json"`)
+	} else {
+		// download the defaults-file
+
+		call := googleApi.DriveService.Files.Get(response.Files[0].Id)
+
+		if response, err := call.Download(); err != nil {
+			return template, fmt.Errorf(`can't download "defaults.json": %v`, err)
+		} else {
+			if err = json.NewDecoder(response.Body).Decode(&templateJson); err != nil {
+				return template, nil
+			} else {
+				template = livestreamTemplate{
+					livestreamTemplateJson: templateJson,
+					Category:               youtubeCategoryMap[templateJson.Category],
+				}
+			}
+		}
+	}
+
+	return template, nil
 }
 
 var config configStruct
@@ -117,7 +155,7 @@ func init() {
 			{Name: "root", Level: configYaml.LogLevel, OutputNames: []string{"console", "log", "mail"}},
 		},
 		Formats: []api.CfgFormat{
-			{"type": "text", "name": "std", "layout": "[%{time}] [%{level}] >> %{msg}\n"},
+			{"type": "text", "name": "std", "layout": "[%{time}] [%{level}] %{msg}\n"},
 		},
 		Outputs: []api.CfgOutput{
 			{"type": "console", "name": "console", "format": "std"},

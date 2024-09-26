@@ -16,12 +16,12 @@ import (
 
 	"github.com/evbuehl/livestreamScheduler/lib/googleApi"
 	"github.com/jrivets/log4g"
-	"google.golang.org/api/drive/v2"
+	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/youtube/v3"
 )
 
-func (c *livestreamConfig) createBroadcast() error {
+func (c *livestreamTemplate) createBroadcast() error {
 	broadcast := youtube.LiveBroadcast{
 		Snippet: &youtube.LiveBroadcastSnippet{
 			Title:              "Livestream in construction",
@@ -47,7 +47,7 @@ func (c *livestreamConfig) createBroadcast() error {
 	}
 }
 
-func (c livestreamConfig) addPlaylist() error {
+func (c livestreamTemplate) addPlaylist() error {
 	for _, playlistID := range c.PlaylistIDs {
 		playlistItem := &youtube.PlaylistItem{
 			Snippet: &youtube.PlaylistItemSnippet{
@@ -69,7 +69,7 @@ func (c livestreamConfig) addPlaylist() error {
 	return nil
 }
 
-func (c livestreamConfig) setCategoryPrivacy() error {
+func (c livestreamTemplate) setCategoryPrivacy() error {
 	video := &youtube.Video{
 		Id: c.BroadcastID,
 		Snippet: &youtube.VideoSnippet{
@@ -77,7 +77,7 @@ func (c livestreamConfig) setCategoryPrivacy() error {
 			CategoryId: c.Category,
 		},
 		Status: &youtube.VideoStatus{
-			PrivacyStatus: "unlisted",
+			PrivacyStatus: "public",
 		},
 	}
 
@@ -90,8 +90,8 @@ func (c livestreamConfig) setCategoryPrivacy() error {
 	return nil
 }
 
-func dlThumbnail(id string) (*http.Response, error) {
-	call := googleApi.DriveService.Files.Get(id)
+func dlThumbnail(thumbnail string) (*http.Response, error) {
+	call := googleApi.DriveService.Files.Get(thumbnail)
 
 	if response, err := call.Download(); err != nil {
 		return nil, err
@@ -100,7 +100,7 @@ func dlThumbnail(id string) (*http.Response, error) {
 	}
 }
 
-func (c livestreamConfig) setThumbnail() error {
+func (c livestreamTemplate) setThumbnail() error {
 	if thumbnail, err := dlThumbnail(c.Thumbnail); err != nil {
 		return fmt.Errorf("can't download thumbnail %v", err)
 	} else {
@@ -114,12 +114,8 @@ func (c livestreamConfig) setThumbnail() error {
 	return nil
 }
 
-func (c livestreamConfig) moveThumbnail() error {
-	parent := drive.ParentReference{
-		Id: config.Thumbnails.Done,
-	}
-
-	call := googleApi.DriveService.Parents.Insert(c.Thumbnail, &parent)
+func (c livestreamTemplate) moveThumbnail() error {
+	call := googleApi.DriveService.Files.Update(c.Thumbnail, nil).AddParents(config.Thumbnails.Done).RemoveParents(config.Thumbnails.Queue)
 
 	if _, err := call.Do(); err != nil {
 		return err
@@ -133,9 +129,9 @@ func getThumbnails() ([]*drive.File, error) {
 		Q(fmt.Sprintf("%q in parents and (mimeType = 'image/jpeg' or mimeType = 'image/png')", config.Thumbnails.Queue))
 
 	if response, err := call.Do(); err != nil {
-		return nil, nil
+		return nil, err
 	} else {
-		return response.Items, nil
+		return response.Files, nil
 	}
 }
 
@@ -144,10 +140,10 @@ var now = time.Now()
 var titleParser = regexp.MustCompile(`^(?P<year>\d{4})-(?P<month>\d\d)-(?P<day>\d\d)\.(?P<hour>\d\d)-(?P<minute>\d\d)-(?P<second>\d\d)(?:\.(?P<title>.+))?\.(?:jpg|png)$`)
 var subExpNames = titleParser.SubexpNames()
 
-func (c livestreamConfig) handleThumbnail(thumbnail *drive.File) {
+func (c livestreamTemplate) handleThumbnail(thumbnail *drive.File) {
 	defer wg.Done()
 
-	regexResult := titleParser.FindStringSubmatch(thumbnail.Title)
+	regexResult := titleParser.FindStringSubmatch(thumbnail.Name)
 
 	if len(regexResult) > 0 {
 		result := make(map[string]string)
@@ -174,7 +170,7 @@ func (c livestreamConfig) handleThumbnail(thumbnail *drive.File) {
 		timeUntilLive := livestreamDate.Sub(now)
 
 		if timeUntilLive > 0 && timeUntilLive < config.CreationDistance {
-			logger.Info(fmt.Sprintf("Creating Livestream for %s", thumbnail.Title))
+			logger.Info(fmt.Sprintf("Creating Livestream for %s", thumbnail.Name))
 
 			c.Thumbnail = thumbnail.Id
 			c.Date = livestreamDate.Format(time.RFC3339)
@@ -188,28 +184,22 @@ func (c livestreamConfig) handleThumbnail(thumbnail *drive.File) {
 			}
 
 			if err := c.createBroadcast(); err != nil {
-				logger.Critical("failed to create broadcast: %v", err)
+				logger.Critical(fmt.Sprintf("failed to create broadcast: %v", err))
 			} else {
-				if err := c.setCategoryPrivacy(); err != nil {
-					logger.Error("failed to set category and privacy: %v", err)
-				}
-
-				if err := c.addPlaylist(); err != nil {
-					logger.Error("failed to add broadcast to playlists: %v", err)
-				}
-
 				if err := c.setThumbnail(); err != nil {
-					logger.Error("failed to set thumbnail: %v", err)
-				}
-
-				if err := c.moveThumbnail(); err != nil {
-					logger.Critical(`failed to move thumbnail to "scheduled"-directory`)
+					logger.Error(fmt.Sprintf("failed to set thumbnail: %v", err))
+				} else if err := c.setCategoryPrivacy(); err != nil {
+					logger.Error(fmt.Sprintf("failed to set category and privacy: %v", err))
+				} else if err := c.addPlaylist(); err != nil {
+					logger.Error(fmt.Sprintf("failed to add broadcast to playlists: %v", err))
+				} else if err := c.moveThumbnail(); err != nil {
+					logger.Critical(fmt.Sprintf(`failed to move thumbnail to "scheduled"-directory: %v`, err))
 				}
 			}
 		}
 
 	} else {
-		logger.Debug(fmt.Sprintf(`skipping thumbnail %q, filename doesn't match "YYYY-MM-DD.HH-MM-SS.(TITLE)?.(jpg|png)"`, thumbnail.Title))
+		logger.Debug(fmt.Sprintf(`skipping thumbnail %q, filename doesn't match "YYYY-MM-DD.HH-MM-SS.(TITLE)?.(jpg|png)"`, thumbnail.Name))
 	}
 }
 
