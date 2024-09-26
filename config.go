@@ -70,7 +70,7 @@ func loadYaml() configYaml {
 	dec.KnownFields(true)
 	err = dec.Decode(&config)
 	if err != nil {
-		logger.Sugar().Errorf("Error parsing config-file: %q", err.Error())
+		logger.Sugar().Errorf("Error parsing config-file: %v", err)
 		os.Exit(1)
 	}
 

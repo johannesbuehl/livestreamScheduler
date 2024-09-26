@@ -15,7 +15,7 @@ jobs:
         uses: "finnp/create-file-action@master"
         env:
           FILE_NAME: "config.yaml"
-          FILE_DATA: ${{ vars.CONFIGYAML }}
+          FILE_BASE64: ${{ vars.CONFIGYAML }}
 
       - name: create credentials.json
         id: create-json-credentials
@@ -37,6 +37,4 @@ jobs:
           chmod +x ./livestreamScheduler
 
       - name: Execute binary
-        run: |
-          cat ./config.yaml
-          ./livestreamScheduler
+        run: ./livestreamScheduler
