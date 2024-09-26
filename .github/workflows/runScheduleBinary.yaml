@@ -11,19 +11,19 @@ jobs:
 
     steps:
 
-    - name: create credentials.json
-      id: create-json-credentials
-      uses: jsdaniell/create-json@v1.2.3
-      with:
-        name: "credentials.json"
-        json: ${{ secrets.CREDENTIALSJSON }}
+      - name: create credentials.json
+        id: create-json-credentials
+        uses: jsdaniell/create-json@v1.2.3
+        with:
+          name: "credentials.json"
+          json: ${{ secrets.CREDENTIALSJSON }}
 
-    - name: create token.json
-      id: create-json-token
-      uses: jsdaniell/create-json@v1.2.3
-      with:
-        name: "token.json"
-        json: ${{ secrets.TOKENJSON }}
+      - name: create token.json
+        id: create-json-token
+        uses: jsdaniell/create-json@v1.2.3
+        with:
+          name: "token.json"
+          json: ${{ secrets.TOKENJSON }}
 
       - name: Download binary from GitHub Release
         run: |
