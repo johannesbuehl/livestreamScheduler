@@ -14,11 +14,11 @@ import (
 )
 
 type livestreamTemplateJson struct {
-	Title         string   `yaml:"title"`
-	Description   string   `yaml:"description"`
-	Category      string   `yaml:"category"`
-	PlaylistIDs   []string `yaml:"playlist_ids"`
-	PrivacyStatus string   `yaml:"privacy_status"`
+	Title         string   `json:"title"`
+	Description   string   `json:"description"`
+	Category      string   `json:"category"`
+	PlaylistIDs   []string `json:"playlist_ids"`
+	PrivacyStatus string   `json:"privacy_status"`
 }
 
 type livestreamTemplate struct {

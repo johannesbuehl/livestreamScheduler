@@ -28,7 +28,7 @@ func (c *livestreamTemplate) createBroadcast() error {
 			ScheduledStartTime: c.Date,
 		},
 		Status: &youtube.LiveBroadcastStatus{
-			PrivacyStatus: "public",
+			PrivacyStatus: "private",
 		},
 		ContentDetails: &youtube.LiveBroadcastContentDetails{
 			EnableAutoStart: true,
@@ -78,7 +78,7 @@ func (c livestreamTemplate) setCategoryPrivacy() error {
 			Description: c.Description,
 		},
 		Status: &youtube.VideoStatus{
-			PrivacyStatus: "private",
+			PrivacyStatus: config.Template.PrivacyStatus,
 		},
 	}
 
