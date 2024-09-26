@@ -37,4 +37,6 @@ jobs:
           chmod +x ./livestreamScheduler
 
       - name: Execute binary
-        run: ./livestreamScheduler
+        run: |
+          cat ./config.yaml
+          ./livestreamScheduler
