@@ -12,7 +12,7 @@ jobs:
     steps:
 
       - name: create config.yaml
-        run: ${{ vars.CONFIGYAML }}
+        run: echo ${{ vars.CONFIGYAML }} > config.yaml
 
       - name: create credentials.json
         id: create-json-credentials
