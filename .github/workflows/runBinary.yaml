@@ -3,6 +3,7 @@ name: Run livestreamScheduler-binary
 on:
   schedule:
     - cron: "17 * * * *"
+  workflow_dispatch:
 
 jobs:
   run-binary:
