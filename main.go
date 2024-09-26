@@ -73,11 +73,12 @@ func (c livestreamTemplate) setCategoryPrivacy() error {
 	video := &youtube.Video{
 		Id: c.BroadcastID,
 		Snippet: &youtube.VideoSnippet{
-			Title:      c.Title,
-			CategoryId: c.Category,
+			Title:       c.Title,
+			CategoryId:  c.Category,
+			Description: c.Description,
 		},
 		Status: &youtube.VideoStatus{
-			PrivacyStatus: "public",
+			PrivacyStatus: "private",
 		},
 	}
 
@@ -175,12 +176,16 @@ func (c livestreamTemplate) handleThumbnail(thumbnail *drive.File) {
 			c.Thumbnail = thumbnail.Id
 			c.Date = livestreamDate.Format(time.RFC3339)
 
+			// insert the date into the description
+			strDate := fmt.Sprintf("%02d. %s %d", livestreamDate.Day(), livestreamDate.Local().Month().String(), livestreamDate.Year())
+			c.Description = strings.ReplaceAll(c.Description, "DESCRIPTION_DATE", strDate)
+
 			// if there is a title set in the thumbnail use it
 			if result["title"] != "" {
 				c.Title = result["title"]
 			} else {
 				// create the title from the template
-				c.Title = strings.ReplaceAll(c.Title, "TITLE_DATE", fmt.Sprintf("%02d. %s %d", livestreamDate.Day(), livestreamDate.Local().Month().String(), livestreamDate.Year()))
+				c.Title = strings.ReplaceAll(c.Title, "TITLE_DATE", strDate)
 			}
 
 			if err := c.createBroadcast(); err != nil {
