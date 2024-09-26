@@ -27,7 +27,7 @@ jobs:
 
       - name: Download binary from GitHub Release
         run: |
-          curl -L -o livestreamScheduler https://github.com/evbuehl/livestreamScheduler/releases/latest/download/livestreamScheduler
+          curl -L -o livestreamScheduler https://github.com/johannesbuehl/livestreamScheduler/releases/latest/download/livestreamScheduler
           chmod +x ./livestreamScheduler
 
       - name: Execute binary
