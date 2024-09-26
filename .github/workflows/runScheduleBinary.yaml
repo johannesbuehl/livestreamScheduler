@@ -11,6 +11,9 @@ jobs:
 
     steps:
 
+      - name: create config.yaml
+        run: ${{ vars.CONFIGYAML }}
+
       - name: create credentials.json
         id: create-json-credentials
         uses: jsdaniell/create-json@v1.2.3
