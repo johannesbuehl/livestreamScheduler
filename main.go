@@ -127,7 +127,7 @@ func (c livestreamTemplate) moveThumbnail() error {
 
 func getThumbnails() ([]*drive.File, error) {
 	call := googleApi.DriveService.Files.List().
-		Q(fmt.Sprintf("%q in parents and (mimeType = 'image/jpeg' or mimeType = 'image/png')", config.Thumbnails.Queue))
+		Q(fmt.Sprintf("trashed = false and %q in parents and (mimeType = 'image/jpeg' or mimeType = 'image/png')", config.Thumbnails.Queue))
 
 	if response, err := call.Do(); err != nil {
 		return nil, err
