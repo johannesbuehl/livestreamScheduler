@@ -31,10 +31,10 @@ jobs:
           name: "token.json"
           json: ${{ secrets.TOKENJSON }}
 
-      - name: download logs from artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: logs
+      # - name: download logs from artifact
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: logs
 
       - name: Check latest release version
         id: latest-release
