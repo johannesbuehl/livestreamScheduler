@@ -32,7 +32,6 @@ jobs:
           json: ${{ secrets.TOKENJSON }}
 
       - name: download logs from artifact
-        if: ${{ steps.check_coverage_artifact.outputs.exists }}
         uses: actions/download-artifact@v4
         with:
           name: logs
