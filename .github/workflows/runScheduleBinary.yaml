@@ -35,7 +35,7 @@ jobs:
         uses: xSAVIKx/artifact-exists-action@v0
         id: logs
         with:
-          name: 'coverage-artifact'
+          name: 'logs'
 
       - name: download logs from artifact
         if: ${{ steps.check_coverage_artifact.outputs.exists }}
