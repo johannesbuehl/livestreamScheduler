@@ -142,6 +142,7 @@ var titleParser = regexp.MustCompile(`^(?P<year>\d{4})-(?P<month>\d\d)-(?P<day>\
 var subExpNames = titleParser.SubexpNames()
 
 func (c livestreamTemplate) handleThumbnail(thumbnail *drive.File) {
+	wg.Add(1)
 	defer wg.Done()
 
 	regexResult := titleParser.FindStringSubmatch(thumbnail.Name)
@@ -171,7 +172,7 @@ func (c livestreamTemplate) handleThumbnail(thumbnail *drive.File) {
 		timeUntilLive := livestreamDate.Sub(now)
 
 		if timeUntilLive > 0 && timeUntilLive < config.CreationDistance {
-			logger.Info(fmt.Sprintf("Creating Livestream for %s", thumbnail.Name))
+			logger.Info().Msg(fmt.Sprintf("Creating Livestream for %s", thumbnail.Name))
 
 			c.Thumbnail = thumbnail.Id
 			c.Date = livestreamDate.Format(time.RFC3339)
@@ -189,22 +190,22 @@ func (c livestreamTemplate) handleThumbnail(thumbnail *drive.File) {
 			}
 
 			if err := c.createBroadcast(); err != nil {
-				logger.Critical(fmt.Sprintf("failed to create broadcast: %v", err))
+				logger.Fatal().Msg(fmt.Sprintf("failed to create broadcast: %v", err))
 			} else {
 				if err := c.setThumbnail(); err != nil {
-					logger.Error(fmt.Sprintf("failed to set thumbnail: %v", err))
+					logger.Error().Msg(fmt.Sprintf("failed to set thumbnail: %v", err))
 				} else if err := c.setCategoryPrivacy(); err != nil {
-					logger.Error(fmt.Sprintf("failed to set category and privacy: %v", err))
+					logger.Error().Msg(fmt.Sprintf("failed to set category and privacy: %v", err))
 				} else if err := c.addPlaylist(); err != nil {
-					logger.Error(fmt.Sprintf("failed to add broadcast to playlists: %v", err))
+					logger.Error().Msg(fmt.Sprintf("failed to add broadcast to playlists: %v", err))
 				} else if err := c.moveThumbnail(); err != nil {
-					logger.Critical(fmt.Sprintf(`failed to move thumbnail to "scheduled"-directory: %v`, err))
+					logger.Fatal().Msg(fmt.Sprintf(`failed to move thumbnail to "scheduled"-directory: %v`, err))
 				}
 			}
 		}
 
 	} else {
-		logger.Debug(fmt.Sprintf(`skipping thumbnail %q, filename doesn't match "YYYY-MM-DD.HH-MM-SS.(TITLE)?.(jpg|png)"`, thumbnail.Name))
+		logger.Debug().Msg(fmt.Sprintf(`skipping thumbnail %q, filename doesn't match "YYYY-MM-DD.HH-MM-SS.(TITLE)?.(jpg|png)"`, thumbnail.Name))
 	}
 }
 
@@ -286,19 +287,12 @@ func main() {
 		if err := sendMail(); err != nil {
 			panic(err)
 		}
-
-		if r := recover(); r != nil {
-			logger.Critical(r)
-			panic(r)
-		}
 	}()
 
 	if thumbnails, err := getThumbnails(); err != nil {
-		logger.Critical("can't get thumbnails")
+		logger.Panic().Msg("can't get thumbnails")
 	} else {
 		for _, thumbnail := range thumbnails {
-			wg.Add(1)
-
 			go config.Template.handleThumbnail(thumbnail)
 		}
 	}

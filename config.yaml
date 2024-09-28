@@ -1,4 +1,4 @@
-LogLevel: INFO
+LogLevel: DEBUG
 MailLevel: INFO
 MailAddress: evbuehl@gmail.com
 CreationDistance: 24h

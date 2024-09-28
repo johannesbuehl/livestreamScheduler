@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/evbuehl/livestreamScheduler/lib/googleApi"
-	"github.com/xtfly/log4g"
-	"github.com/xtfly/log4g/api"
+	"github.com/rs/zerolog"
+	"gopkg.in/natefinch/lumberjack.v2"
 	"gopkg.in/yaml.v3"
 )
 
@@ -46,6 +48,8 @@ type configYaml struct {
 
 type configStruct struct {
 	configYaml
+	LogLevel         zerolog.Level `yaml:"LogLevel"`
+	MailLevel        zerolog.Level `yaml:"MailLevel"`
 	CreationDistance time.Duration
 	Template         livestreamTemplate
 }
@@ -71,8 +75,7 @@ func loadYaml() configYaml {
 
 	yamlFile, err := os.ReadFile("config.yaml")
 	if err != nil {
-		logger.Critical(fmt.Sprintf("Error opening config-file: %q", err))
-		panic(err)
+		logger.Panic().Msg(fmt.Sprintf("Error opening config-file: %q", err))
 	}
 
 	reader := bytes.NewReader(yamlFile)
@@ -81,8 +84,7 @@ func loadYaml() configYaml {
 	dec.KnownFields(true)
 	err = dec.Decode(&config)
 	if err != nil {
-		logger.Critical(fmt.Sprintf("Error parsing config-file: %v", err))
-		panic(err)
+		logger.Panic().Msg(fmt.Sprintf("Error parsing config-file: %v", err))
 	}
 
 	return config
@@ -92,16 +94,20 @@ func loadConfig(config configYaml) configStruct {
 	duration, err := time.ParseDuration(config.CreationDistance)
 
 	if err != nil {
-		logger.Critical(fmt.Sprintf("can't parse CreationDistance %v", err))
-
-		panic(err)
+		panic(fmt.Sprintf("can't parse CreationDistance %v", err))
 	}
 
 	if t, err := loadTemplate(); err != nil {
 		panic(err)
+	} else if logLevel, err := zerolog.ParseLevel(config.LogLevel); err != nil {
+		panic(fmt.Errorf("can't parse log-level: %v", err))
+	} else if mailLevel, err := zerolog.ParseLevel(config.LogLevel); err != nil {
+		panic(fmt.Errorf("can't parse mail-log-level: %v", err))
 	} else {
 		return configStruct{
 			configYaml:       config,
+			LogLevel:         logLevel,
+			MailLevel:        mailLevel,
 			CreationDistance: duration,
 			Template:         t,
 		}
@@ -145,35 +151,76 @@ func loadTemplate() (livestreamTemplate, error) {
 
 var config configStruct
 
-var logger api.Logger
+var logger zerolog.Logger
+
+type specificLevelWriter struct {
+	io.Writer
+	Level zerolog.Level
+}
+
+func (w specificLevelWriter) WriteLevel(l zerolog.Level, p []byte) (int, error) {
+	if l >= w.Level {
+		return w.Write(p)
+	} else {
+		return len(p), nil
+	}
+}
 
 func init() {
 	configYaml := loadYaml()
-
-	// initialize the logger
-	cfg := &api.Config{
-		Loggers: []api.CfgLogger{
-			{Name: "root", Level: configYaml.LogLevel, OutputNames: []string{"console", "log", "mail"}},
-		},
-		Formats: []api.CfgFormat{
-			{"type": "text", "name": "std", "layout": "[%{time}] [%{level}] %{msg}\n"},
-		},
-		Outputs: []api.CfgOutput{
-			{"type": "console", "name": "console", "format": "std"},
-			{"type": "time_rolling_file", "name": "log", "file": "logs/livestreamScheduler.log", "pattern": "2006-01-02", "backups": "7", "format": "std"},
-			{"type": "size_rolling_file", "name": "mail", "file": "mail.log", "format": "std", "threshold": configYaml.MailLevel},
-		},
-	}
-
-	if err := log4g.GetManager().SetConfig(cfg); err != nil {
-		panic(err)
-	}
-
-	logger = log4g.GetLogger("default")
 
 	// get the youtube category map
 	getCategoryMap()
 
 	// now parse the configYaml
 	config = loadConfig(configYaml)
+
+	// try to set the log-level
+	zerolog.SetGlobalLevel(config.LogLevel)
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+
+	// create the console output
+	outputConsole := zerolog.ConsoleWriter{
+		Out:        os.Stdout,
+		TimeFormat: time.DateTime,
+		FormatLevel: func(i interface{}) string {
+			return strings.ToUpper(fmt.Sprintf("| %-6s|", i))
+		},
+		FormatFieldName: func(i interface{}) string {
+			return fmt.Sprintf("%s", i)
+		},
+	}
+
+	// create the logfile output
+	outputLog := &lumberjack.Logger{
+		Filename:  "logs/livestreamScheduler.log",
+		MaxAge:    7,
+		LocalTime: true,
+	}
+
+	// create the mail output
+	outputMail := outputConsole
+	outputMail.NoColor = true
+	outputMail.Out = &lumberjack.Logger{
+		Filename: "Mail.log",
+	}
+
+	// create a multi-output-writer
+	multi := zerolog.MultiLevelWriter(
+		specificLevelWriter{
+			Writer: outputConsole,
+			Level:  config.LogLevel,
+		},
+		specificLevelWriter{
+			Writer: outputLog,
+			Level:  config.LogLevel,
+		},
+		specificLevelWriter{
+			Writer: outputMail,
+			Level:  config.MailLevel,
+		},
+	)
+
+	// create a logger-instance
+	logger = zerolog.New(multi).With().Timestamp().Logger()
 }
