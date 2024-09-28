@@ -142,7 +142,6 @@ var titleParser = regexp.MustCompile(`^(?P<year>\d{4})-(?P<month>\d\d)-(?P<day>\
 var subExpNames = titleParser.SubexpNames()
 
 func (c livestreamTemplate) handleThumbnail(thumbnail *drive.File) {
-	wg.Add(1)
 	defer wg.Done()
 
 	regexResult := titleParser.FindStringSubmatch(thumbnail.Name)
@@ -292,6 +291,8 @@ func main() {
 	if thumbnails, err := getThumbnails(); err != nil {
 		logger.Panic().Msg("can't get thumbnails")
 	} else {
+		wg.Add(len(thumbnails))
+
 		for _, thumbnail := range thumbnails {
 			go config.Template.handleThumbnail(thumbnail)
 		}

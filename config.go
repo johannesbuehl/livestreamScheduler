@@ -202,7 +202,7 @@ func init() {
 	outputMail := outputConsole
 	outputMail.NoColor = true
 	outputMail.Out = &lumberjack.Logger{
-		Filename: "Mail.log",
+		Filename: "mail.log",
 	}
 
 	// create a multi-output-writer
