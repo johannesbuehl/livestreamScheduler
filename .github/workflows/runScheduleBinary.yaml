@@ -43,18 +43,30 @@ jobs:
         with:
           name: logs
 
+      - name: Check latest release version
+        id: latest-release
+        run: |
+          latest_release=$(curl --silent "https://api.github.com/repos/johannesbuehl/livestreamScheduler/releases/latest" | jq -r .tag_name)
+          echo "Latest release: $latest_release"
+          echo "::set-output name=version::$latest_release"
+
+      - name: Cache binary
+        id: cache-binary
+        uses: actions/cache@v4
+        with:
+          path: livestreamScheduler
+          key: livestreamScheduler-${{ steps.latest-release.outputs.version }}
+          restore-keys: |
+            livestreamScheduler-
+
       - name: Download binary from GitHub Release
+        if: steps.cache-binary.outputs.cache-hit != 'true'
         run: |
           curl -L -o livestreamScheduler https://github.com/johannesbuehl/livestreamScheduler/releases/latest/download/livestreamScheduler
           chmod +x ./livestreamScheduler
 
       - name: Execute binary
-        run: |
-          cat ./config.yaml
-          ./livestreamScheduler
-
-      - name: DEBUG create file tree
-        run: tree
+        run: ./livestreamScheduler
 
       - name: upload logs to artifact
         uses: actions/upload-artifact@v4
