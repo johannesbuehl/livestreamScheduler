@@ -15,7 +15,7 @@ jobs:
         uses: "finnp/create-file-action@master"
         env:
           FILE_NAME: "config.json"
-          FILE_BASE64: ${{ vars.CONFIGJSON }}
+          FILE_DATA: ${{ vars.CONFIGJSON }}
 
       - name: create credentials.json
         id: create-json-credentials
