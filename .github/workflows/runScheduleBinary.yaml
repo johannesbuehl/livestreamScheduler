@@ -48,7 +48,7 @@ jobs:
         run: |
           latest_release=$(curl --silent "https://api.github.com/repos/johannesbuehl/livestreamScheduler/releases/latest" | jq -r .tag_name)
           echo "Latest release: $latest_release"
-          echo "::set-output name=version::$latest_release"
+          echo "version=$latest_release" >> $GITHUB_OUTPUT
 
       - name: Cache binary
         id: cache-binary
