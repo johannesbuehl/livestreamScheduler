@@ -11,11 +11,11 @@ jobs:
 
     steps:
 
-      - name: create config.yaml
+      - name: create config.json
         uses: "finnp/create-file-action@master"
         env:
-          FILE_NAME: "config.yaml"
-          FILE_BASE64: ${{ vars.CONFIGYAML }}
+          FILE_NAME: "config.json"
+          FILE_BASE64: ${{ vars.CONFIGJSON }}
 
       - name: create credentials.json
         id: create-json-credentials
