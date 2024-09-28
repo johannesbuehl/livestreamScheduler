@@ -53,6 +53,9 @@ jobs:
           cat ./config.yaml
           ./livestreamScheduler
 
+      - name: DEBUG create file tree
+        run: tree
+
       - name: upload logs to artifact
         uses: actions/upload-artifact@v4
         with:
