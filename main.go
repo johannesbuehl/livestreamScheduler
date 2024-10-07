@@ -141,6 +141,21 @@ var now = time.Now()
 var titleParser = regexp.MustCompile(`^(?P<year>\d{4})-(?P<month>\d\d)-(?P<day>\d\d)\.(?P<hour>\d\d)-(?P<minute>\d\d)-(?P<second>\d\d)(?:\.(?P<title>.+))?\.(?:jpg|png)$`)
 var subExpNames = titleParser.SubexpNames()
 
+var germanMonths = map[time.Month]string{
+	time.January:   "Januar",
+	time.February:  "Februar",
+	time.March:     "März",
+	time.April:     "April",
+	time.May:       "Mai",
+	time.June:      "Juni",
+	time.July:      "Juli",
+	time.August:    "August",
+	time.September: "September",
+	time.October:   "Oktober",
+	time.November:  "November",
+	time.December:  "Dezember",
+}
+
 func (c livestreamTemplate) handleThumbnail(thumbnail *drive.File) {
 	wg.Add(1)
 	defer wg.Done()
@@ -178,7 +193,7 @@ func (c livestreamTemplate) handleThumbnail(thumbnail *drive.File) {
 			c.Date = livestreamDate.Format(time.RFC3339)
 
 			// insert the date into the description
-			strDate := fmt.Sprintf("%02d. %s %d", livestreamDate.Day(), livestreamDate.Local().Month().String(), livestreamDate.Year())
+			strDate := fmt.Sprintf("%02d. %s %d", livestreamDate.Day(), germanMonths[livestreamDate.Local().Month()], livestreamDate.Year())
 			c.Description = strings.ReplaceAll(c.Description, "DESCRIPTION_DATE", strDate)
 
 			// if there is a title set in the thumbnail use it
