@@ -11,11 +11,11 @@ jobs:
 
     steps:
 
-      - name: create config.yaml
+      - name: create config.json
         uses: "finnp/create-file-action@master"
         env:
-          FILE_NAME: "config.yaml"
-          FILE_BASE64: ${{ vars.CONFIGYAML }}
+          FILE_NAME: "config.json"
+          FILE_DATA: ${{ vars.CONFIGJSON }}
 
       - name: create credentials.json
         id: create-json-credentials
@@ -31,30 +31,35 @@ jobs:
           name: "token.json"
           json: ${{ secrets.TOKENJSON }}
 
-      - name: check wether the logs exist in artifacts
-        uses: xSAVIKx/artifact-exists-action@v0
-        id: logs
-        with:
-          name: 'coverage-artifact'
+      # - name: download logs from artifact
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: logs
 
-      - name: download logs from artifact
-        if: ${{ steps.check_coverage_artifact.outputs.exists }}
-        uses: actions/download-artifact@v4
+      - name: Check latest release version
+        id: latest-release
+        run: |
+          latest_release=$(curl --silent "https://api.github.com/repos/johannesbuehl/livestreamScheduler/releases/latest" | jq -r .tag_name)
+          echo "Latest release: $latest_release"
+          echo "version=$latest_release" >> $GITHUB_OUTPUT
+
+      - name: Cache binary
+        id: cache-binary
+        uses: actions/cache@v4
         with:
-          name: logs
+          path: livestreamScheduler
+          key: livestreamScheduler-${{ steps.latest-release.outputs.version }}
+          restore-keys: |
+            livestreamScheduler-
 
       - name: Download binary from GitHub Release
+        if: steps.cache-binary.outputs.cache-hit != 'true'
         run: |
           curl -L -o livestreamScheduler https://github.com/johannesbuehl/livestreamScheduler/releases/latest/download/livestreamScheduler
           chmod +x ./livestreamScheduler
 
       - name: Execute binary
-        run: |
-          cat ./config.yaml
-          ./livestreamScheduler
-
-      - name: DEBUG create file tree
-        run: tree
+        run: ./livestreamScheduler
 
       - name: upload logs to artifact
         uses: actions/upload-artifact@v4

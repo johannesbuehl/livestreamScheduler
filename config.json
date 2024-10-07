@@ -1,0 +1,11 @@
+{
+    "log_level": "DEBUG",
+    "mail_level": "INFO",
+    "mail_address": "evbuehl@gmail.com",
+    "creation_distance": "24h",
+    "region_code": "DE",
+    "thumbnails": {
+        "queue": "110N0zGP8Pqwlf_4zz_RdSr9J6JKgTpUM",
+        "done": "1hot3b2kdLNKxW74xQwiaRPbNVY4pknQb"
+    }
+}

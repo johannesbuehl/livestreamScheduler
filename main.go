@@ -157,7 +157,6 @@ var germanMonths = map[time.Month]string{
 }
 
 func (c livestreamTemplate) handleThumbnail(thumbnail *drive.File) {
-	wg.Add(1)
 	defer wg.Done()
 
 	regexResult := titleParser.FindStringSubmatch(thumbnail.Name)
@@ -307,6 +306,8 @@ func main() {
 	if thumbnails, err := getThumbnails(); err != nil {
 		logger.Panic().Msg("can't get thumbnails")
 	} else {
+		wg.Add(len(thumbnails))
+
 		for _, thumbnail := range thumbnails {
 			go config.Template.handleThumbnail(thumbnail)
 		}

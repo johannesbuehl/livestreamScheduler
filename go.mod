@@ -11,7 +11,6 @@ require (
 	github.com/jrivets/log4g v0.0.0-20191016233753-c02c5046dc98
 	github.com/rs/zerolog v1.33.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
-	gopkg.in/yaml.v3 v3.0.1
 )
 
 require github.com/jrivets/gorivets v0.0.0-20191016233429-669d3f1acfa1 // indirect

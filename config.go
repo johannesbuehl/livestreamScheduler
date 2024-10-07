@@ -12,7 +12,6 @@ import (
 	"github.com/evbuehl/livestreamScheduler/lib/googleApi"
 	"github.com/rs/zerolog"
 	"gopkg.in/natefinch/lumberjack.v2"
-	"gopkg.in/yaml.v3"
 )
 
 type livestreamTemplateJson struct {
@@ -33,23 +32,23 @@ type livestreamTemplate struct {
 }
 
 type thumbnails struct {
-	Queue string `yaml:"Queue"`
-	Done  string `yaml:"Done"`
+	Queue string `json:"queue"`
+	Done  string `json:"done"`
 }
 
-type configYaml struct {
-	LogLevel         string     `yaml:"LogLevel"`
-	MailLevel        string     `yaml:"MailLevel"`
-	MailAddress      string     `yaml:"MailAddress"`
-	CreationDistance string     `yaml:"CreationDistance"`
-	RegionCode       string     `yaml:"RegionCode"`
-	Thumbnails       thumbnails `yaml:"Thumbnails"`
+type configJson struct {
+	LogLevel         string     `json:"log_level"`
+	MailLevel        string     `json:"mail_level"`
+	MailAddress      string     `json:"mail_address"`
+	CreationDistance string     `json:"creation_distance"`
+	RegionCode       string     `json:"region_code"`
+	Thumbnails       thumbnails `json:"thumbnails"`
 }
 
 type configStruct struct {
-	configYaml
-	LogLevel         zerolog.Level `yaml:"LogLevel"`
-	MailLevel        zerolog.Level `yaml:"MailLevel"`
+	configJson
+	LogLevel         zerolog.Level `json:"log_level"`
+	MailLevel        zerolog.Level `json:"mail_level"`
 	CreationDistance time.Duration
 	Template         livestreamTemplate
 }
@@ -70,18 +69,18 @@ func getCategoryMap() error {
 	}
 }
 
-func loadYaml() configYaml {
-	config := configYaml{}
+func loadJson() configJson {
+	config := configJson{}
 
-	yamlFile, err := os.ReadFile("config.yaml")
+	jsonFile, err := os.ReadFile("config.json")
 	if err != nil {
 		logger.Panic().Msg(fmt.Sprintf("Error opening config-file: %q", err))
 	}
 
-	reader := bytes.NewReader(yamlFile)
+	reader := bytes.NewReader(jsonFile)
 
-	dec := yaml.NewDecoder(reader)
-	dec.KnownFields(true)
+	dec := json.NewDecoder(reader)
+	dec.DisallowUnknownFields()
 	err = dec.Decode(&config)
 	if err != nil {
 		logger.Panic().Msg(fmt.Sprintf("Error parsing config-file: %v", err))
@@ -90,7 +89,7 @@ func loadYaml() configYaml {
 	return config
 }
 
-func loadConfig(config configYaml) configStruct {
+func loadConfig(config configJson) configStruct {
 	duration, err := time.ParseDuration(config.CreationDistance)
 
 	if err != nil {
@@ -105,7 +104,7 @@ func loadConfig(config configYaml) configStruct {
 		panic(fmt.Errorf("can't parse mail-log-level: %v", err))
 	} else {
 		return configStruct{
-			configYaml:       config,
+			configJson:       config,
 			LogLevel:         logLevel,
 			MailLevel:        mailLevel,
 			CreationDistance: duration,
@@ -167,13 +166,13 @@ func (w specificLevelWriter) WriteLevel(l zerolog.Level, p []byte) (int, error) 
 }
 
 func init() {
-	configYaml := loadYaml()
+	configJson := loadJson()
 
 	// get the youtube category map
 	getCategoryMap()
 
-	// now parse the configYaml
-	config = loadConfig(configYaml)
+	// now parse the configJson
+	config = loadConfig(configJson)
 
 	// try to set the log-level
 	zerolog.SetGlobalLevel(config.LogLevel)
@@ -202,7 +201,7 @@ func init() {
 	outputMail := outputConsole
 	outputMail.NoColor = true
 	outputMail.Out = &lumberjack.Logger{
-		Filename: "Mail.log",
+		Filename: "mail.log",
 	}
 
 	// create a multi-output-writer
