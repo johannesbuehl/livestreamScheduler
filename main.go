@@ -180,7 +180,7 @@ func (c livestreamTemplate) handleThumbnail(thumbnail *drive.File) {
 			}
 		}
 
-		livestreamDate := time.Date(d["year"], time.Month(d["month"]), d["day"], d["hour"], d["minute"], d["second"], 0, time.Local)
+		livestreamDate := time.Date(d["year"], time.Month(d["month"]), d["day"], d["hour"], d["minute"], d["second"], 0, config.Template.Timezone)
 
 		timeUntilLive := livestreamDate.Sub(now)
 

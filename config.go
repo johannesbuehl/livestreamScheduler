@@ -20,6 +20,7 @@ type livestreamTemplateJson struct {
 	Category      string   `json:"category"`
 	PlaylistIDs   []string `json:"playlist_ids"`
 	PrivacyStatus string   `json:"privacy_status"`
+	Timezone      string   `json:"timezone"`
 }
 
 type livestreamTemplate struct {
@@ -29,6 +30,7 @@ type livestreamTemplate struct {
 	Category    string
 	PlaylistIDs []string
 	Thumbnail   string
+	Timezone    *time.Location
 }
 
 type thumbnails struct {
@@ -119,7 +121,6 @@ func loadTemplate() (livestreamTemplate, error) {
 
 	call := googleApi.DriveService.Files.List().
 		Q("name = 'defaults.json'")
-		// Q(fmt.Sprintf("%q in parents and name = \"defaults.json\"", config.Thumbnails.Queue))
 
 	if response, err := call.Do(); err != nil {
 		return template, err
@@ -134,11 +135,18 @@ func loadTemplate() (livestreamTemplate, error) {
 			return template, fmt.Errorf(`can't download "defaults.json": %v`, err)
 		} else {
 			if err = json.NewDecoder(response.Body).Decode(&templateJson); err != nil {
-				return template, nil
+				return template, fmt.Errorf(`can't decode "defaults.json": %v`, err)
 			} else {
+				location, err := time.LoadLocation(templateJson.Timezone)
+
+				if err != nil {
+					location = time.Local
+				}
+
 				template = livestreamTemplate{
 					livestreamTemplateJson: templateJson,
 					Category:               youtubeCategoryMap[templateJson.Category],
+					Timezone:               location,
 				}
 			}
 		}
