@@ -111,7 +111,6 @@ func loadConfig(config configJson) configStruct {
 			Template:         t,
 		}
 	}
-
 }
 
 func loadTemplate() (livestreamTemplate, error) {

@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/evbuehl/livestreamScheduler/lib/googleApi"
-	"github.com/jrivets/log4g"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/youtube/v3"
@@ -189,7 +188,7 @@ func (c livestreamTemplate) handleThumbnail(thumbnail *drive.File) {
 			logger.Info().Msg(fmt.Sprintf("Creating Livestream for %s", thumbnail.Name))
 
 			c.Thumbnail = thumbnail.Id
-			c.Date = livestreamDate.Format(time.RFC3339)
+			c.Date = livestreamDate.UTC().Format(time.RFC3339)
 
 			// insert the date into the description
 			strDate := fmt.Sprintf("%02d. %s %d", livestreamDate.Day(), germanMonths[livestreamDate.Local().Month()], livestreamDate.Year())
@@ -296,8 +295,6 @@ var wg sync.WaitGroup
 
 func main() {
 	defer func() {
-		log4g.Shutdown()
-
 		if err := sendMail(); err != nil {
 			panic(err)
 		}
