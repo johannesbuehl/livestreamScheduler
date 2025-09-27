@@ -9,18 +9,16 @@ import (
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
 	"google.golang.org/api/youtube/v3"
 )
 
 var YoutubeService *youtube.Service
-var DriveService *drive.Service
 var GmailService *gmail.Service
 
 func getClient(config *oauth2.Config) (*http.Client, error) {
-	tokenFile := "token.json"
+	tokenFile := "config/token.json"
 
 	token, err := getTokenFromFile(tokenFile)
 
@@ -122,19 +120,15 @@ func init() {
 
 	// initialize the youtube-api
 	// load credentials.json
-	if b, err := os.ReadFile("credentials.json"); err != nil {
+	if b, err := os.ReadFile("config/credentials.json"); err != nil {
 	} else {
-		if config, err := google.ConfigFromJSON(b, youtube.YoutubeScope, drive.DriveScope, gmail.GmailSendScope); err != nil {
+		if config, err := google.ConfigFromJSON(b, youtube.YoutubeScope, gmail.GmailSendScope); err != nil {
 		} else {
 			if client, err := getClient(config); err != nil {
 				panic(err)
 			} else {
 				if service, err := youtube.NewService(ctx, option.WithHTTPClient(client)); err == nil {
 					YoutubeService = service
-				}
-
-				if service, err := drive.NewService(ctx, option.WithHTTPClient(client)); err == nil {
-					DriveService = service
 				}
 
 				if service, err := gmail.NewService(ctx, option.WithHTTPClient(client)); err == nil {

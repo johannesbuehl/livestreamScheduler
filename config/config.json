@@ -1,0 +1,20 @@
+{
+  "log_level": "DEBUG",
+  "mail_level": "INFO",
+  "mail_address": "evbuehl@gmail.com",
+  "creation_distance": "24h",
+  "region_code": "DE",
+  "schedule": "*/10 * * * *",
+  "thumbnails": {
+    "queue": "thumbnails",
+    "done": "thumbnails/scheduled"
+  },
+  "defaults": {
+    "title": "Gottesdienst der Evangelischen Kirche Bühl | TITLE_DATE | #ekibageistlich",
+    "description": "⛪️ Hier könnt ihr unseren Gottesdienst am DESCRIPTION_DATE mitverfolgen.\n\nSpendenkonten:  Evangelische Kirchengemeinde Bühl\nVolksbank Bühl: IBAN DE69 6629 1400 0000 6099 00\nSparkasse Bühl: IBAN DE31 6625 1434 0000 0139 38\n\nSo entstehen unsere Gottesdienste:\nhttps://youtu.be/8yFV-mhXz9g\n\n🖥 Website: https://www.evkirchebuehl.de\n💌 Kontakt: post@evkirchebuehl.de\n\n#ekibageistlich\n\nMit freundlicher Unterstützung von Ziegler Beschallungstechnik",
+    "category": "People & Blogs",
+    "playlist_ids": ["PLGdIyIZ8SJQq88MQl3gC0Afp2yFcfcpeQ"],
+    "privacy_status": "private",
+    "timezone": "Europe/Berlin"
+  }
+}

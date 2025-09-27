@@ -29,7 +29,7 @@ type livestreamTemplate struct {
 	Date        string
 	Category    string
 	PlaylistIDs []string
-	Thumbnail   string
+	Thumbnail   Thumbnail
 	Timezone    *time.Location
 }
 
@@ -39,12 +39,14 @@ type thumbnails struct {
 }
 
 type configJson struct {
-	LogLevel         string     `json:"log_level"`
-	MailLevel        string     `json:"mail_level"`
-	MailAddress      string     `json:"mail_address"`
-	CreationDistance string     `json:"creation_distance"`
-	RegionCode       string     `json:"region_code"`
-	Thumbnails       thumbnails `json:"thumbnails"`
+	LogLevel         string                 `json:"log_level"`
+	MailLevel        string                 `json:"mail_level"`
+	MailAddress      string                 `json:"mail_address"`
+	CreationDistance string                 `json:"creation_distance"`
+	RegionCode       string                 `json:"region_code"`
+	Schedule         string                 `json:"schedule"`
+	Thumbnails       thumbnails             `json:"thumbnails"`
+	Defaults         livestreamTemplateJson `json:"defaults"`
 }
 
 type configStruct struct {
@@ -53,12 +55,13 @@ type configStruct struct {
 	MailLevel        zerolog.Level `json:"mail_level"`
 	CreationDistance time.Duration
 	Template         livestreamTemplate
+	Defaults         livestreamTemplate
 }
 
 var youtubeCategoryMap = map[string]string{}
 
-func getCategoryMap() error {
-	call := googleApi.YoutubeService.VideoCategories.List([]string{"snippet"}).RegionCode(config.RegionCode)
+func getCategoryMap(regionCode string) error {
+	call := googleApi.YoutubeService.VideoCategories.List([]string{"snippet"}).RegionCode(regionCode)
 
 	if response, err := call.Do(); err != nil {
 		return err
@@ -74,7 +77,7 @@ func getCategoryMap() error {
 func loadJson() configJson {
 	config := configJson{}
 
-	jsonFile, err := os.ReadFile("config.json")
+	jsonFile, err := os.ReadFile("config/config.json")
 	if err != nil {
 		logger.Panic().Msg(fmt.Sprintf("Error opening config-file: %q", err))
 	}
@@ -91,14 +94,14 @@ func loadJson() configJson {
 	return config
 }
 
-func loadConfig(config configJson) configStruct {
+func loadConfigFromJson(config configJson) configStruct {
 	duration, err := time.ParseDuration(config.CreationDistance)
 
 	if err != nil {
 		panic(fmt.Sprintf("can't parse CreationDistance %v", err))
 	}
 
-	if t, err := loadTemplate(); err != nil {
+	if t, err := loadTemplate(config.Defaults); err != nil {
 		panic(err)
 	} else if logLevel, err := zerolog.ParseLevel(config.LogLevel); err != nil {
 		panic(fmt.Errorf("can't parse log-level: %v", err))
@@ -115,41 +118,20 @@ func loadConfig(config configJson) configStruct {
 	}
 }
 
-func loadTemplate() (livestreamTemplate, error) {
+func loadTemplate(templateJson livestreamTemplateJson) (livestreamTemplate, error) {
 	var template livestreamTemplate
-	templateJson := livestreamTemplateJson{}
 
-	call := googleApi.DriveService.Files.List().
-		Q("name = 'defaults.json'")
+	location, err := time.LoadLocation(templateJson.Timezone)
 
-	if response, err := call.Do(); err != nil {
-		return template, err
-	} else if len(response.Files) == 0 {
-		return template, fmt.Errorf(`can't find "defaults.json"`)
-	} else {
-		// download the defaults-file
+	if err != nil {
+		location = time.Local
+	}
 
-		call := googleApi.DriveService.Files.Get(response.Files[0].Id)
-
-		if response, err := call.Download(); err != nil {
-			return template, fmt.Errorf(`can't download "defaults.json": %v`, err)
-		} else {
-			if err = json.NewDecoder(response.Body).Decode(&templateJson); err != nil {
-				return template, fmt.Errorf(`can't decode "defaults.json": %v`, err)
-			} else {
-				location, err := time.LoadLocation(templateJson.Timezone)
-
-				if err != nil {
-					location = time.Local
-				}
-
-				template = livestreamTemplate{
-					livestreamTemplateJson: templateJson,
-					Category:               youtubeCategoryMap[templateJson.Category],
-					Timezone:               location,
-				}
-			}
-		}
+	template = livestreamTemplate{
+		livestreamTemplateJson: templateJson,
+		Category:               youtubeCategoryMap[templateJson.Category],
+		Timezone:               location,
+		PlaylistIDs:            templateJson.PlaylistIDs,
 	}
 
 	return template, nil
@@ -172,14 +154,14 @@ func (w specificLevelWriter) WriteLevel(l zerolog.Level, p []byte) (int, error) 
 	}
 }
 
-func init() {
+func loadConfig() {
 	configJson := loadJson()
 
 	// get the youtube category map
-	getCategoryMap()
+	getCategoryMap(configJson.RegionCode)
 
 	// now parse the configJson
-	config = loadConfig(configJson)
+	config = loadConfigFromJson(configJson)
 
 	// try to set the log-level
 	zerolog.SetGlobalLevel(config.LogLevel)
@@ -229,4 +211,8 @@ func init() {
 
 	// create a logger-instance
 	logger = zerolog.New(multi).With().Timestamp().Logger()
+}
+
+func init() {
+	loadConfig()
 }

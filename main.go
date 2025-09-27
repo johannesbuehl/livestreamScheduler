@@ -5,20 +5,28 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
+	"mime"
 	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/evbuehl/livestreamScheduler/lib/googleApi"
-	"google.golang.org/api/drive/v3"
+	"github.com/go-co-op/gocron/v2"
+	"github.com/jonboulle/clockwork"
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/youtube/v3"
 )
+
+type Thumbnail struct {
+	Path string
+	Name string
+}
 
 func (c *livestreamTemplate) createBroadcast() error {
 	broadcast := youtube.LiveBroadcast{
@@ -90,21 +98,13 @@ func (c livestreamTemplate) setCategoryPrivacy() error {
 	return nil
 }
 
-func dlThumbnail(thumbnail string) (*http.Response, error) {
-	call := googleApi.DriveService.Files.Get(thumbnail)
-
-	if response, err := call.Download(); err != nil {
-		return nil, err
-	} else {
-		return response, nil
-	}
-}
-
 func (c livestreamTemplate) setThumbnail() error {
-	if thumbnail, err := dlThumbnail(c.Thumbnail); err != nil {
-		return fmt.Errorf("can't download thumbnail %v", err)
+	if thumbnail, err := os.Open(c.Thumbnail.Path); err != nil {
+		return fmt.Errorf("can't open thumbnail %v", err)
 	} else {
-		call := googleApi.YoutubeService.Thumbnails.Set(c.BroadcastID).Media(thumbnail.Body)
+		defer thumbnail.Close()
+
+		call := googleApi.YoutubeService.Thumbnails.Set(c.BroadcastID).Media(thumbnail)
 
 		if _, err := call.Do(); err != nil {
 			return fmt.Errorf("can't set thumbnail: %v", err)
@@ -115,23 +115,30 @@ func (c livestreamTemplate) setThumbnail() error {
 }
 
 func (c livestreamTemplate) moveThumbnail() error {
-	call := googleApi.DriveService.Files.Update(c.Thumbnail, nil).AddParents(config.Thumbnails.Done).RemoveParents(config.Thumbnails.Queue)
-
-	if _, err := call.Do(); err != nil {
-		return err
-	} else {
-		return nil
-	}
+	return os.Rename(c.Thumbnail.Path, filepath.Join(filepath.Dir(c.Thumbnail.Name), config.Thumbnails.Done, c.Thumbnail.Name))
 }
 
-func getThumbnails() ([]*drive.File, error) {
-	call := googleApi.DriveService.Files.List().
-		Q(fmt.Sprintf("trashed = false and %q in parents and (mimeType = 'image/jpeg' or mimeType = 'image/png')", config.Thumbnails.Queue))
-
-	if response, err := call.Do(); err != nil {
+func getThumbnails() ([]Thumbnail, error) {
+	if files, err := os.ReadDir(config.Thumbnails.Queue); err != nil {
 		return nil, err
 	} else {
-		return response.Files, nil
+		returnFiles := []Thumbnail{}
+
+		mimeTypes := []string{"image/jpeg", "image/png"}
+
+		for _, ff := range files {
+			// if it isn't a directory and the mime-type fits, add it to the return files
+			if !ff.IsDir() && slices.Contains(mimeTypes, mime.TypeByExtension(filepath.Ext(ff.Name()))) {
+				thumbnail := Thumbnail{
+					Path: filepath.Join(config.Thumbnails.Queue, ff.Name()),
+					Name: ff.Name(),
+				}
+
+				returnFiles = append(returnFiles, thumbnail)
+			}
+		}
+
+		return returnFiles, nil
 	}
 }
 
@@ -155,7 +162,7 @@ var germanMonths = map[time.Month]string{
 	time.December:  "Dezember",
 }
 
-func (c livestreamTemplate) handleThumbnail(thumbnail *drive.File) {
+func (c livestreamTemplate) handleThumbnail(thumbnail Thumbnail) {
 	defer wg.Done()
 
 	regexResult := titleParser.FindStringSubmatch(thumbnail.Name)
@@ -187,7 +194,7 @@ func (c livestreamTemplate) handleThumbnail(thumbnail *drive.File) {
 		if timeUntilLive > 0 && timeUntilLive < config.CreationDistance {
 			logger.Info().Msg(fmt.Sprintf("Creating Livestream for %s", thumbnail.Name))
 
-			c.Thumbnail = thumbnail.Id
+			c.Thumbnail = thumbnail
 			c.Date = livestreamDate.UTC().Format(time.RFC3339)
 
 			// insert the date into the description
@@ -218,7 +225,7 @@ func (c livestreamTemplate) handleThumbnail(thumbnail *drive.File) {
 		}
 
 	} else {
-		logger.Debug().Msg(fmt.Sprintf(`skipping thumbnail %q, filename doesn't match "YYYY-MM-DD.HH-MM-SS.(TITLE)?.(jpg|png)"`, thumbnail.Name))
+		logger.Debug().Msg(fmt.Sprintf(`skipping thumbnail %q, filename doesn't match "YYYY-MM-DD.HH-MM-SS.(TITLE)?.(jpg|png)"`, filepath.Base(thumbnail.Name)))
 	}
 }
 
@@ -293,11 +300,16 @@ func sendMail() error {
 
 var wg sync.WaitGroup
 
-func main() {
+func doSchedule() {
+	loadConfig()
+
+	// send a mail-notification at the end
 	defer func() {
 		if err := sendMail(); err != nil {
 			panic(err)
 		}
+
+		os.Remove("mail.log")
 	}()
 
 	if thumbnails, err := getThumbnails(); err != nil {
@@ -311,4 +323,29 @@ func main() {
 	}
 
 	wg.Wait()
+}
+
+func main() {
+	doSchedule()
+
+	// create a scheduler
+	scheduler, err := gocron.NewScheduler()
+	if err != nil {
+		panic(err)
+	}
+
+	// add a job to the scheduler
+	if _, err := scheduler.NewJob(
+		gocron.CronJob(config.Schedule, false),
+		gocron.NewTask(doSchedule),
+	); err != nil {
+		panic(err)
+	} else {
+		// start the scheduler
+		scheduler.Start()
+
+		c := clockwork.NewFakeClock()
+
+		c.Sleep(time.Second)
+	}
 }
