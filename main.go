@@ -118,23 +118,19 @@ func (c livestreamTemplate) moveThumbnail() error {
 	oldPath := c.Thumbnail.Path
 	newPath := filepath.Join(filepath.Dir(c.Thumbnail.Name), config.Thumbnails.Done, c.Thumbnail.Name)
 
-	if oldFile, err := os.Open(oldPath); err != nil {
+	if oldContent, err := os.ReadFile(oldPath); err != nil {
 		return err
 	} else {
 		if newFile, err := os.Create(newPath); err != nil {
-			oldFile.Close()
 
 			return err
 		} else {
 			defer newFile.Close()
 
-			if _, err := io.Copy(oldFile, newFile); err != nil {
-				oldFile.Close()
+			if _, err := newFile.Write(oldContent); err != nil {
 
 				return err
 			} else {
-				oldFile.Close()
-
 				return os.Remove(oldPath)
 			}
 		}
