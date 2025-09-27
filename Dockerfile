@@ -16,4 +16,6 @@ WORKDIR /usr/local/app
 
 COPY --from=build /tmp/app/app .
 
+USER 1000:1000
+
 CMD ["./app"]
