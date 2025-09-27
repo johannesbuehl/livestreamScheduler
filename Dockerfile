@@ -12,10 +12,10 @@ RUN go build -o app
 
 FROM alpine:latest
 
+USER 1000:1000
+
 WORKDIR /usr/local/app
 
 COPY --from=build /tmp/app/app .
-
-USER 1000:1000
 
 CMD ["./app"]
