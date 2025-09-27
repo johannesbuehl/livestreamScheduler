@@ -76,5 +76,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          title: Release {{ steps.meta.outputs.tags }}
-          tag: "{{ steps.meta.outputs.tags }}"
+          title: Release ${{ steps.meta.outputs.tags }}
+          tag: ${{ steps.meta.outputs.tags }}
