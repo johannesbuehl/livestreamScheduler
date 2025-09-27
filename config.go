@@ -181,7 +181,7 @@ func loadConfig() {
 
 	// create the logfile output
 	outputLog := &lumberjack.Logger{
-		Filename:  "logs/livestreamScheduler.log",
+		Filename:  "logs/livestream-scheduler.log",
 		MaxAge:    7,
 		LocalTime: true,
 	}

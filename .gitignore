@@ -5,7 +5,7 @@ credentials.json
 token.json
 
 __debug_bin*
-livestreamScheduler.exe
-livestreamScheduler
+livestream-scheduler.exe
+livestream-scheduler
 
 thumbnails

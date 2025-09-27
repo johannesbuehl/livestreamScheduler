@@ -279,7 +279,7 @@ func sendMail() error {
 				From:    "Livestream Scheduler",
 				Date:    time.Now().Format(time.RFC1123Z),
 				To:      config.MailAddress,
-				Subject: "Summary of livestreamScheduler",
+				Subject: "Summary of livestream-scheduler",
 				Body:    string(mailLog),
 			}
 

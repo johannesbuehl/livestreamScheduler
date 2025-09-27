@@ -1,0 +1,9 @@
+services:
+  livestream-scheduler:
+    image: localhost/livestream-scheduler:2.0.0-alpha
+    container_name: livestream-scheduler
+    restart: unless-stopped
+    volumes:
+      - ./thumbnails:/usr/local/app/thumbnails
+      - ./config:/usr/local/app/config
+      - ./logs:/usr/local/app/logs
