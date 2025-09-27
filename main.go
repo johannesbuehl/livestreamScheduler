@@ -115,7 +115,26 @@ func (c livestreamTemplate) setThumbnail() error {
 }
 
 func (c livestreamTemplate) moveThumbnail() error {
-	return os.Rename(c.Thumbnail.Path, filepath.Join(filepath.Dir(c.Thumbnail.Name), config.Thumbnails.Done, c.Thumbnail.Name))
+	oldPath := c.Thumbnail.Path
+	newPath := filepath.Join(filepath.Dir(c.Thumbnail.Name), config.Thumbnails.Done, c.Thumbnail.Name)
+
+	if oldFile, err := os.Open(oldPath); err != nil {
+		return err
+	} else {
+		defer oldFile.Close()
+
+		if newFile, err := os.Create(newPath); err != nil {
+			return err
+		} else {
+			defer newFile.Close()
+
+			if _, err := io.Copy(oldFile, newFile); err != nil {
+				return err
+			} else {
+				return os.Remove(oldPath)
+			}
+		}
+	}
 }
 
 func getThumbnails() ([]Thumbnail, error) {
