@@ -121,16 +121,20 @@ func (c livestreamTemplate) moveThumbnail() error {
 	if oldFile, err := os.Open(oldPath); err != nil {
 		return err
 	} else {
-		defer oldFile.Close()
-
 		if newFile, err := os.Create(newPath); err != nil {
+			oldFile.Close()
+
 			return err
 		} else {
 			defer newFile.Close()
 
 			if _, err := io.Copy(oldFile, newFile); err != nil {
+				oldFile.Close()
+
 				return err
 			} else {
+				oldFile.Close()
+
 				return os.Remove(oldPath)
 			}
 		}
